@@ -622,3 +622,31 @@ func TestDetectClaudeCodeRequestRecognizesAgentSDKHaiku55Helpers(t *testing.T) {
 		})
 	}
 }
+
+func TestDetectClaudeCodeRequestCloakEntrypointsDemotesConfiguredNativeEntrypoints(t *testing.T) {
+	payload := claudeCodeDetectionPayload(validClaudeCodeMetadataUserID)
+	cfg := &config.Config{ClaudeCloakEntrypoints: []string{" SDK-TS "}}
+	for _, test := range []struct {
+		name      string
+		userAgent string
+		cfg       *config.Config
+		native    bool
+	}{
+		{name: "sdk-ts listed", userAgent: "claude-cli/2.1.280 (external, sdk-ts, agent-sdk/0.3.220)", cfg: cfg, native: false},
+		{name: "sdk-ts unlisted", userAgent: "claude-cli/2.1.280 (external, sdk-ts, agent-sdk/0.3.220)", cfg: &config.Config{}, native: true},
+		{name: "cli unaffected", userAgent: "claude-cli/2.1.280 (external, cli)", cfg: cfg, native: true},
+		{name: "sdk-cli unaffected", userAgent: "claude-cli/2.1.280 (external, sdk-cli)", cfg: cfg, native: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			headers := confirmedClaudeCodeHeaders()
+			headers.Set("User-Agent", test.userAgent)
+			detection := DetectClaudeCodeRequest(headers, payload, false, test.cfg)
+			if !detection.StrongSignals {
+				t.Fatalf("detection = %#v, want strong signals kept", detection)
+			}
+			if detection.NativeClient != test.native || detection.Confirmed != test.native {
+				t.Fatalf("detection = %#v, want native/confirmed %t", detection, test.native)
+			}
+		})
+	}
+}
