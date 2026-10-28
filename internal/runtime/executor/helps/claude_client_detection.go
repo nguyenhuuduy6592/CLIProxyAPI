@@ -70,6 +70,20 @@ var nativeClaudeEntrypoints = map[string]bool{
 	"claude-vscode": true,
 }
 
+// cloakEntrypointConfigured reports whether upstream.claude.cloak-entrypoints lists the
+// entrypoint, which forces the request through cloaking instead of native passthrough.
+func cloakEntrypointConfigured(cfg *config.Config, entrypoint string) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, configured := range cfg.ClaudeCloakEntrypoints {
+		if strings.EqualFold(strings.TrimSpace(configured), entrypoint) {
+			return true
+		}
+	}
+	return false
+}
+
 type claudeCodeHelperShape uint8
 
 const (
@@ -155,7 +169,7 @@ func DetectClaudeCodeRequest(headers http.Header, payload []byte, countTokens bo
 
 	metadataUserID := gjson.GetBytes(payload, "metadata.user_id")
 	detection.MetadataUserID = metadataUserID.Exists() && metadataUserID.Type == gjson.String && isValidUserID(metadataUserID.String())
-	detection.NativeClient = nativeClaudeEntrypoints[entrypoint]
+	detection.NativeClient = nativeClaudeEntrypoints[entrypoint] && !cloakEntrypointConfigured(cfg, entrypoint)
 	standardSignals := detection.XAppCLI && detection.UserAgent && detection.BetasPresent && (countTokens || detection.MetadataUserID)
 	detection.HelperProfile = detection.NativeClient && matchesMeasuredClaudeCodeHelperProfile(headers, payload, countTokens, detection, cfg)
 	detection.StrongSignals = standardSignals || detection.HelperProfile
