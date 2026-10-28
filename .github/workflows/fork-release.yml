@@ -1,11 +1,9 @@
 name: fork-release
 
+# Push a branch named build/<version> (for example build/8.0.46-cloak.1) to build and publish.
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version without leading v (for example 8.0.46-cloak.1)'
-        required: true
+  push:
+    branches: ['build/*']
 
 permissions:
   contents: write
@@ -23,10 +21,9 @@ jobs:
       - name: Refresh models catalog
         run: bash .github/scripts/refresh-model-catalogs.sh
       - name: Build glibc 2.17 archive
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+          export RELEASE_VERSION="${GITHUB_REF_NAME#build/}"
           export COMMIT="$(git rev-parse --short HEAD)"
           export BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           export GOARCH=arm64
@@ -49,9 +46,9 @@ jobs:
       - name: Publish release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+          RELEASE_VERSION="${GITHUB_REF_NAME#build/}"
           gh release create "v${RELEASE_VERSION}" "dist/CLIProxyAPI_${RELEASE_VERSION}_linux_aarch64.tar.gz" \
             --target "$GITHUB_SHA" --title "v${RELEASE_VERSION}" \
             --notes "Upstream plus upstream.claude.cloak-entrypoints (${GITHUB_SHA})."
